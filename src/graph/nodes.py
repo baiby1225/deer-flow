@@ -49,6 +49,14 @@ def background_investigation_node(state: State, config: RunnableConfig):
     configurable = Configuration.from_runnable_config(config)
     query = state.get("research_topic")
     background_investigation_results = None
+    
+    # Check if web search is disabled
+    if SELECTED_SEARCH_ENGINE == SearchEngine.NO_SEARCH.value:
+        logger.info("Web search is disabled - skipping background investigation")
+        return {
+            "background_investigation_results": "Background investigation skipped - using only knowledge base sources"
+        }
+    
     if SELECTED_SEARCH_ENGINE == SearchEngine.TAVILY.value:
         searched_content = LoggedTavilySearch(
             max_results=configurable.max_search_results
@@ -70,9 +78,13 @@ def background_investigation_node(state: State, config: RunnableConfig):
                 f"Tavily search returned malformed response: {searched_content}"
             )
     else:
-        background_investigation_results = get_web_search_tool(
-            configurable.max_search_results
-        ).invoke(query)
+        web_search_tool = get_web_search_tool(configurable.max_search_results)
+        if web_search_tool is not None:
+            background_investigation_results = web_search_tool.invoke(query)
+        else:
+            logger.info("Web search tool is None - skipping background investigation")
+            background_investigation_results = "Web search is disabled - using only knowledge base sources"
+    
     return {
         "background_investigation_results": json.dumps(
             background_investigation_results, ensure_ascii=False
@@ -483,11 +495,33 @@ async def researcher_node(
     """Researcher node that do research"""
     logger.info("Researcher node is researching.")
     configurable = Configuration.from_runnable_config(config)
-    tools = [get_web_search_tool(configurable.max_search_results), crawl_tool]
+    
+    # Initialize tools list
+    tools = []
+    
+    # Add web search tool only if search is enabled
+    if SELECTED_SEARCH_ENGINE != SearchEngine.NO_SEARCH.value:
+        web_search_tool = get_web_search_tool(configurable.max_search_results)
+        if web_search_tool is not None:
+            tools.append(web_search_tool)
+            logger.info("Web search tool added to researcher")
+        else:
+            logger.info("Web search tool is None - skipping web search")
+    else:
+        logger.info("Web search is disabled - using only knowledge base sources")
+    
+    # Always add crawl tool for local content
+    tools.append(crawl_tool)
+    
+    # Add retriever tool for knowledge base access
     retriever_tool = get_retriever_tool(state.get("resources", []))
     if retriever_tool:
         tools.insert(0, retriever_tool)
-    logger.info(f"Researcher tools: {tools}")
+        logger.info("Knowledge base retriever tool added to researcher")
+    else:
+        logger.info("No knowledge base retriever tool available")
+    
+    logger.info(f"Researcher tools: {[tool.name if hasattr(tool, 'name') else str(tool) for tool in tools]}")
     return await _setup_and_execute_agent_step(
         state,
         config,

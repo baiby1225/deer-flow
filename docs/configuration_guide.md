@@ -182,11 +182,48 @@ BASIC_MODEL:
 
 ## About Search Engine
 
+### Supported Search Engines
+
+DeerFlow supports multiple search engines that can be configured using the `SEARCH_API` environment variable:
+
+- **Tavily** (default): A specialized search API for AI applications
+- **DuckDuckGo**: Privacy-focused search engine
+- **Brave Search**: Privacy-focused search engine with advanced features
+- **Arxiv**: Scientific paper search for academic research
+- **Wikipedia**: Wikipedia search for general knowledge
+- **No Search**: Disable external search completely (knowledge base only mode)
+
+### How to configure search engine?
+
+Set the `SEARCH_API` variable in your `.env` file:
+
+```bash
+# Choose one: tavily, duckduckgo, brave_search, arxiv, wikipedia, no_search
+SEARCH_API=tavily
+```
+
+### Disable Web Search (Knowledge Base Only Mode)
+
+To completely disable external web search and use only your knowledge base sources, set:
+
+```bash
+SEARCH_API=no_search
+```
+
+This mode will:
+- Skip background investigation using external search engines
+- Remove web search tools from the researcher agent
+- Rely entirely on your configured RAG provider (RAGFlow, Dify, etc.)
+- Still allow crawling of local content and MCP tools
+
+This is ideal for:
+- Corporate environments with strict data policies
+- Research that should only use internal knowledge
+- Scenarios where external search results are not relevant
+
 ### How to control search domains for Tavily?
 
 DeerFlow allows you to control which domains are included or excluded in Tavily search results through the configuration file. This helps improve search result quality and reduce hallucinations by focusing on trusted sources.
-
-`Tips`: it only supports Tavily currently. 
 
 You can configure domain filtering in your `conf.yaml` file as follows:
 
@@ -213,6 +250,7 @@ DeerFlow supports multiple RAG providers for document retrieval. Configure the R
 - **RAGFlow**: Document retrieval using RAGFlow API
 - **VikingDB Knowledge Base**: ByteDance's VikingDB knowledge base service
 - **Milvus**: Open-source vector database for similarity search
+- **Dify**: AI-native application development platform with knowledge base
 
 ### Milvus Configuration
 
@@ -239,3 +277,34 @@ MILVUS_EMBEDDING_BASE_URL=
 MILVUS_EMBEDDING_MODEL=
 MILVUS_EMBEDDING_API_KEY=
 ```
+
+### Dify Configuration
+
+To use Dify as your RAG provider, set the following environment variables:
+
+```bash
+# RAG_PROVIDER: dify
+RAG_PROVIDER=dify
+DIFY_API_URL=https://api.dify.ai/v1
+DIFY_API_KEY=your_dify_api_key
+DIFY_PAGE_SIZE=10
+DIFY_MAX_KNOWLEDGE_BASES=10  # Optional: Maximum number of knowledge bases to query (default: 10)
+```
+
+**Getting Dify API Credentials:**
+
+1. Sign up for a Dify account at [dify.ai](https://dify.ai)
+2. Create one or more knowledge bases in your Dify workspace
+3. Get your API key from the API settings page
+4. The system will automatically discover and query all available knowledge bases
+
+**Multi-Knowledge Base Support:**
+
+- **Automatic Discovery**: When no specific resources are provided, the system automatically queries all available knowledge bases
+- **Selective Querying**: You can specify particular knowledge bases using the resource URI format
+- **Result Aggregation**: Results from multiple knowledge bases are automatically merged and sorted by relevance
+- **Error Resilience**: If one knowledge base fails, the system continues querying other knowledge bases
+
+     **Dify URI Format:**
+     - Dataset: `dify://dataset/{dataset_id}`
+     - Document: `dify://dataset/{dataset_id}/document/{document_id}`

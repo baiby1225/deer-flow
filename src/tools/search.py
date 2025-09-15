@@ -42,7 +42,6 @@ def get_search_config():
 # Get the selected search tool
 def get_web_search_tool(max_search_results: int):
     search_config = get_search_config()
-
     if SELECTED_SEARCH_ENGINE == SearchEngine.TAVILY.value:
         # Only get and apply include/exclude domains for Tavily
         include_domains: Optional[List[str]] = search_config.get("include_domains", [])
@@ -97,5 +96,9 @@ def get_web_search_tool(max_search_results: int):
                 doc_content_chars_max=wiki_doc_content_chars_max,
             ),
         )
+    elif SELECTED_SEARCH_ENGINE == SearchEngine.NO_SEARCH.value:
+        # Return None to indicate no web search should be performed
+        logger.info("Web search is disabled - using only knowledge base sources")
+        return None
     else:
         raise ValueError(f"Unsupported search engine: {SELECTED_SEARCH_ENGINE}")

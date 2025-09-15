@@ -15,6 +15,7 @@ class SearchEngine(enum.Enum):
     BRAVE_SEARCH = "brave_search"
     ARXIV = "arxiv"
     WIKIPEDIA = "wikipedia"
+    NO_SEARCH = "no_search"
 
 
 # Tool configuration
@@ -25,6 +26,7 @@ class RAGProvider(enum.Enum):
     RAGFLOW = "ragflow"
     VIKINGDB_KNOWLEDGE_BASE = "vikingdb_knowledge_base"
     MILVUS = "milvus"
+    DIFY = "dify"
 
 
 SELECTED_RAG_PROVIDER = os.getenv("RAG_PROVIDER")

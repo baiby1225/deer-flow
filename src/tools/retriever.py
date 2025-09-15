@@ -51,11 +51,16 @@ class RetrieverTool(BaseTool):
 
 
 def get_retriever_tool(resources: List[Resource]) -> RetrieverTool | None:
-    if not resources:
-        return None
     logger.info(f"create retriever tool: {SELECTED_RAG_PROVIDER}")
     retriever = build_retriever()
 
     if not retriever:
+        logger.info("No RAG provider configured - retriever tool not available")
         return None
+    
+    # In NO_SEARCH mode, always provide retriever tool even without specific resources
+    # This allows querying all available knowledge bases
+    if not resources:
+        logger.info("No specific resources provided - will query all available knowledge bases")
+    
     return RetrieverTool(retriever=retriever, resources=resources)
