@@ -4,7 +4,7 @@
 import logging
 
 from src.config.configuration import get_recursion_limit
-from src.graph import build_graph
+from src.utils.loadmcp import load_config_from_file
 
 # Configure logging
 logging.basicConfig(
@@ -20,16 +20,22 @@ def enable_debug_logging():
 
 logger = logging.getLogger(__name__)
 
-# Create the graph
-graph = build_graph()
+
+# Create the graph - import here to avoid circular import
+def get_graph():
+    from src.graph import build_graph
+    return build_graph()
+
+# Create graph instance for langgraph dev
+graph = get_graph()
 
 
 async def run_agent_workflow_async(
-    user_input: str,
-    debug: bool = False,
-    max_plan_iterations: int = 1,
-    max_step_num: int = 3,
-    enable_background_investigation: bool = True,
+        user_input: str,
+        debug: bool = False,
+        max_plan_iterations: int = 1,
+        max_step_num: int = 3,
+        enable_background_investigation: bool = True,
 ):
     """Run the agent workflow asynchronously with the given user input.
 
@@ -50,34 +56,33 @@ async def run_agent_workflow_async(
         enable_debug_logging()
 
     logger.info(f"Starting async workflow with user input: {user_input}")
+    
+    # Load MCP configuration from file
+    file_config = load_config_from_file()
+    
     initial_state = {
         # Runtime Variables
         "messages": [{"role": "user", "content": user_input}],
         "auto_accepted_plan": True,
         "enable_background_investigation": enable_background_investigation,
     }
+    
+    # Build config with file configuration as base, overridden by function parameters
     config = {
         "configurable": {
             "thread_id": "default",
-            "max_plan_iterations": max_plan_iterations,
-            "max_step_num": max_step_num,
-            "mcp_settings": {
-                "servers": {
-                    "mcp-github-trending": {
-                        "transport": "stdio",
-                        "command": "uvx",
-                        "args": ["mcp-github-trending"],
-                        "enabled_tools": ["get_github_trending_repositories"],
-                        "add_to_agents": ["researcher"],
-                    }
-                }
-            },
+            "max_plan_iterations": file_config.get("max_plan_iterations", max_plan_iterations),
+            "max_step_num": file_config.get("max_step_num", max_step_num),
+            "max_search_results": file_config.get("max_search_results", 3),
+            "report_style": file_config.get("report_style", "academic"),
+            "enable_deep_thinking": file_config.get("enable_deep_thinking", False),
+            "mcp_settings": file_config.get("mcp_settings",{}),
         },
         "recursion_limit": get_recursion_limit(default=100),
     }
     last_message_cnt = 0
     async for s in graph.astream(
-        input=initial_state, config=config, stream_mode="values"
+            input=initial_state, config=config, stream_mode="values"
     ):
         try:
             if isinstance(s, dict) and "messages" in s:

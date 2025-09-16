@@ -1,0 +1,20 @@
+# MCP服务器配置文件
+mcp_settings:
+  servers:
+    mcp-github-trending:
+      transport: stdio
+      command: uvx
+      args: ["mcp-github-trending"]
+      enabled_tools: ["get_github_trending_repositories"]
+      add_to_agents: ["researcher"]
+    
+    bc:
+      transport: sse
+      url: "http://172.16.0.153:3001/sse"
+      enabled_tools: 
+        - "根据项目编号查询项目进度"
+        - "根据客户姓名查询项目进度"
+        - "查询用户名下的客户项目信息"
+      add_to_agents: ["researcher"]
+      headers:
+        Authorization: "Bearer app-123"

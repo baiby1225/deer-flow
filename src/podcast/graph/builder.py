@@ -14,7 +14,7 @@ def build_graph():
     # build state graph
     builder = StateGraph(PodcastState)
     builder.add_node("script_writer", script_writer_node)
-    builder.add_node("tts", tts_node)
+    builder.add_node("tts", tts_node)    
     builder.add_node("audio_mixer", audio_mixer_node)
     builder.add_edge(START, "script_writer")
     builder.add_edge("script_writer", "tts")

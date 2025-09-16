@@ -29,14 +29,17 @@ from src.utils.json_utils import repair_json_output
 
 from ..config import SELECTED_SEARCH_ENGINE, SearchEngine
 from .types import State
+from ..utils.loadmcp import load_config_from_file
+
+# Removed import to avoid circular import - load_config_from_file is not used in this file
 
 logger = logging.getLogger(__name__)
 
 
 @tool
 def handoff_to_planner(
-    research_topic: Annotated[str, "The topic of the research task to be handed off."],
-    locale: Annotated[str, "The user's detected language locale (e.g., en-US, zh-CN)."],
+        research_topic: Annotated[str, "The topic of the research task to be handed off."],
+        locale: Annotated[str, "The user's detected language locale (e.g., en-US, zh-CN)."],
 ):
     """Handoff to planner agent to do plan."""
     # This tool is not returning anything: we're just using it
@@ -49,14 +52,14 @@ def background_investigation_node(state: State, config: RunnableConfig):
     configurable = Configuration.from_runnable_config(config)
     query = state.get("research_topic")
     background_investigation_results = None
-    
+
     # Check if web search is disabled
     if SELECTED_SEARCH_ENGINE == SearchEngine.NO_SEARCH.value:
         logger.info("Web search is disabled - skipping background investigation")
         return {
             "background_investigation_results": "Background investigation skipped - using only knowledge base sources"
         }
-    
+
     if SELECTED_SEARCH_ENGINE == SearchEngine.TAVILY.value:
         searched_content = LoggedTavilySearch(
             max_results=configurable.max_search_results
@@ -84,7 +87,7 @@ def background_investigation_node(state: State, config: RunnableConfig):
         else:
             logger.info("Web search tool is None - skipping background investigation")
             background_investigation_results = "Web search is disabled - using only knowledge base sources"
-    
+
     return {
         "background_investigation_results": json.dumps(
             background_investigation_results, ensure_ascii=False
@@ -93,7 +96,7 @@ def background_investigation_node(state: State, config: RunnableConfig):
 
 
 def planner_node(
-    state: State, config: RunnableConfig
+        state: State, config: RunnableConfig
 ) -> Command[Literal["human_feedback", "reporter"]]:
     """Planner node that generate the full plan."""
     logger.info("Planner generating full plan")
@@ -102,15 +105,15 @@ def planner_node(
     messages = apply_prompt_template("planner", state, configurable)
 
     if state.get("enable_background_investigation") and state.get(
-        "background_investigation_results"
+            "background_investigation_results"
     ):
         messages += [
             {
                 "role": "user",
                 "content": (
-                    "background investigation results of user query:\n"
-                    + state["background_investigation_results"]
-                    + "\n"
+                        "background investigation results of user query:\n"
+                        + state["background_investigation_results"]
+                        + "\n"
                 ),
             }
         ]
@@ -168,7 +171,7 @@ def planner_node(
 
 
 def human_feedback_node(
-    state,
+        state,
 ) -> Command[Literal["planner", "research_team", "reporter", "__end__"]]:
     current_plan = state.get("current_plan", "")
     # check if the plan is auto accepted
@@ -218,7 +221,7 @@ def human_feedback_node(
 
 
 def coordinator_node(
-    state: State, config: RunnableConfig
+        state: State, config: RunnableConfig
 ) -> Command[Literal["planner", "background_investigator", "__end__"]]:
     """Coordinator node that communicate with customers."""
     logger.info("Coordinator talking.")
@@ -245,7 +248,7 @@ def coordinator_node(
                 if tool_call.get("name", "") != "handoff_to_planner":
                     continue
                 if tool_call.get("args", {}).get("locale") and tool_call.get(
-                    "args", {}
+                        "args", {}
                 ).get("research_topic"):
                     locale = tool_call.get("args", {}).get("locale")
                     research_topic = tool_call.get("args", {}).get("research_topic")
@@ -317,7 +320,7 @@ def research_team_node(state: State):
 
 
 async def _execute_agent_step(
-    state: State, agent, agent_name: str
+        state: State, agent, agent_name: str
 ) -> Command[Literal["research_team"]]:
     """Helper function to execute a step using the specified agent."""
     current_plan = state.get("current_plan")
@@ -367,8 +370,8 @@ async def _execute_agent_step(
             agent_input["messages"].append(
                 HumanMessage(
                     content=resources_info
-                    + "\n\n"
-                    + "You MUST use the **local_search_tool** to retrieve the information from the resource files.",
+                            + "\n\n"
+                            + "You MUST use the **local_search_tool** to retrieve the information from the resource files.",
                 )
             )
 
@@ -430,10 +433,10 @@ async def _execute_agent_step(
 
 
 async def _setup_and_execute_agent_step(
-    state: State,
-    config: RunnableConfig,
-    agent_type: str,
-    default_tools: list,
+        state: State,
+        config: RunnableConfig,
+        agent_type: str,
+        default_tools: list,
 ) -> Command[Literal["research_team"]]:
     """Helper function to set up an agent with appropriate tools and execute a step.
 
@@ -452,6 +455,8 @@ async def _setup_and_execute_agent_step(
         Command to update state and go to research_team
     """
     configurable = Configuration.from_runnable_config(config)
+    configurable.mcp_settings = load_config_from_file().get("mcp_settings", {})
+
     mcp_servers = {}
     enabled_tools = {}
 
@@ -459,8 +464,8 @@ async def _setup_and_execute_agent_step(
     if configurable.mcp_settings:
         for server_name, server_config in configurable.mcp_settings["servers"].items():
             if (
-                server_config["enabled_tools"]
-                and agent_type in server_config["add_to_agents"]
+                    server_config["enabled_tools"]
+                    and agent_type in server_config["add_to_agents"]
             ):
                 mcp_servers[server_name] = {
                     k: v
@@ -469,18 +474,25 @@ async def _setup_and_execute_agent_step(
                 }
                 for tool_name in server_config["enabled_tools"]:
                     enabled_tools[tool_name] = server_name
-
+    logging.info("===================1")
+    logging.info(configurable)
+    logging.info(mcp_servers)
     # Create and execute agent with MCP tools if available
     if mcp_servers:
         client = MultiServerMCPClient(mcp_servers)
         loaded_tools = default_tools[:]
         all_tools = await client.get_tools()
+        logging.info(f"===================2")
+        logging.info(f"All MCP tools found: {[tool.name for tool in all_tools]}")
+        logging.info(f"Enabled tools filter: {enabled_tools}")
         for tool in all_tools:
-            if tool.name in enabled_tools:
-                tool.description = (
-                    f"Powered by '{enabled_tools[tool.name]}'.\n{tool.description}"
-                )
-                loaded_tools.append(tool)
+            # if tool.name in enabled_tools:
+            #     tool.description = (
+            #         f"Powered by '{enabled_tools[tool.name]}'.\n{tool.description}"
+            #     )
+            loaded_tools.append(tool)
+            logging.info(f"Added MCP tool: {tool.name}")
+        logging.info(f"Final loaded tools: {[tool.name for tool in loaded_tools]}")
         agent = create_agent(agent_type, agent_type, loaded_tools, agent_type)
         return await _execute_agent_step(state, agent, agent_type)
     else:
@@ -490,15 +502,15 @@ async def _setup_and_execute_agent_step(
 
 
 async def researcher_node(
-    state: State, config: RunnableConfig
+        state: State, config: RunnableConfig
 ) -> Command[Literal["research_team"]]:
     """Researcher node that do research"""
     logger.info("Researcher node is researching.")
     configurable = Configuration.from_runnable_config(config)
-    
+
     # Initialize tools list
     tools = []
-    
+
     # Add web search tool only if search is enabled
     if SELECTED_SEARCH_ENGINE != SearchEngine.NO_SEARCH.value:
         web_search_tool = get_web_search_tool(configurable.max_search_results)
@@ -509,10 +521,10 @@ async def researcher_node(
             logger.info("Web search tool is None - skipping web search")
     else:
         logger.info("Web search is disabled - using only knowledge base sources")
-    
+
     # Always add crawl tool for local content
     tools.append(crawl_tool)
-    
+
     # Add retriever tool for knowledge base access
     retriever_tool = get_retriever_tool(state.get("resources", []))
     if retriever_tool:
@@ -520,7 +532,7 @@ async def researcher_node(
         logger.info("Knowledge base retriever tool added to researcher")
     else:
         logger.info("No knowledge base retriever tool available")
-    
+
     logger.info(f"Researcher tools: {[tool.name if hasattr(tool, 'name') else str(tool) for tool in tools]}")
     return await _setup_and_execute_agent_step(
         state,
@@ -531,7 +543,7 @@ async def researcher_node(
 
 
 async def coder_node(
-    state: State, config: RunnableConfig
+        state: State, config: RunnableConfig
 ) -> Command[Literal["research_team"]]:
     """Coder node that do code analysis."""
     logger.info("Coder node is coding.")
