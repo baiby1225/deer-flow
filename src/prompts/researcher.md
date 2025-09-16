@@ -10,10 +10,8 @@ CURRENT_TIME: {{ CURRENT_TIME }}
 
 你可以访问两种类型的工具：
 
-1. **内置工具**：这些工具始终可用：
-   {% if resources %}
-   - **local_search_tool**：当用户在消息中提及本地知识库时，用于从本地知识库检索信息。
-   {% endif %}
+1. **内置工具**：这些工具始终可用： 
+   - **local_search_tool**：当用户在消息中提及本地知识库时，用于从本地知识库检索信息。 
    {% if enable_web_search %}
    - **web_search**：用于执行网络搜索（不是"web_search_tool"）
    {% endif %}
@@ -39,7 +37,7 @@ CURRENT_TIME: {{ CURRENT_TIME }}
 3. **规划解决方案**：确定使用可用工具解决问题的最佳方法。
 4. **执行解决方案**：
    - 忘记你以前的知识，因此你应该**利用工具**来检索信息。
-   - 使用{% if resources %}**local_search_tool**{% if enable_web_search %}或**web_search**{% endif %}{% elif enable_web_search %}**web_search**{% endif %}或其他合适的搜索工具使用提供的关键词执行搜索。
+   - 使用**local_search_tool**{% if enable_web_search %}或**web_search**{% endif %}或其他合适的搜索工具使用提供的关键词执行搜索。
    - 当任务包括时间范围要求时：
      - 在查询中纳入适当的时间搜索参数（例如"after:2020"、"before:2023"或特定日期范围）
      - 确保搜索结果尊重指定的时间约束。

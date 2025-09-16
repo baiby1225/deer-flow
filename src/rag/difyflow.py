@@ -1,5 +1,6 @@
 # Copyright (c) 2025 Bytedance Ltd. and/or its affiliates
 # SPDX-License-Identifier: MIT
+import json
 import logging
 import os
 from typing import List, Optional
@@ -89,29 +90,29 @@ class DifyFlowProvider(Retriever):
             try:
                 payload = {
                     "query": query,
-                    "retrieval_model": {
-                        "search_method": "hybrid_search",
-                        "reranking_enable": "true",
-                        "reranking_mode": "reranking_model",
-                        "reranking_model": {
-                            "reranking_provider_name": "langgenius/siliconflow/siliconflow",
-                            "reranking_model_name": "BAAI/bge-reranker-v2-m3"
-                        },
-                        "weights": {
-                            "weight_type": "customized",
-                            "keyword_setting": {
-                                "keyword_weight": 0.3
-                            },
-                            "vector_setting": {
-                                "vector_weight": 0.7,
-                                "embedding_model_name": "text-embedding-v4",
-                                "embedding_provider_name": "langgenius/tongyi/tongyi"
-                            }
-                        },
-                        "top_k": 5,
-                        "score_threshold_enabled": "true",
-                        "score_threshold": 0.1
-                    }
+                    # "retrieval_model": {
+                    #     "search_method": "hybrid_search",
+                    #     "reranking_enable": "true",
+                    #     "reranking_mode": "reranking_model",
+                    #     "reranking_model": {
+                    #         "reranking_provider_name": "langgenius/siliconflow/siliconflow",
+                    #         "reranking_model_name": "BAAI/bge-reranker-v2-m3"
+                    #     },
+                    #     "weights": {
+                    #         "weight_type": "customized",
+                    #         "keyword_setting": {
+                    #             "keyword_weight": 0.3
+                    #         },
+                    #         "vector_setting": {
+                    #             "vector_weight": 0.7,
+                    #             "embedding_model_name": "text-embedding-v4",
+                    #             "embedding_provider_name": "langgenius/tongyi/tongyi"
+                    #         }
+                    #     },
+                    #     "top_k": 5,
+                    #     "score_threshold_enabled": "true",
+                    #     "score_threshold": 0.1
+                    # }
                 }
                 response = requests.post(
                     f"{self.api_url}/datasets/{kb_id}/retrieve",
@@ -123,13 +124,13 @@ class DifyFlowProvider(Retriever):
                 if response.status_code == 200:
                     result = response.json()
                     documents = self._parse_dify_response(result, kb_id, doc_id_counter)
-                    if documents is not None and len(documents) > 0:
-                        all_documents.extend(documents)
-                        doc_id_counter += len(documents)
+                    all_documents.extend(documents)
+                    doc_id_counter += len(documents)
                 else:
                     # Log error but continue with other knowledge bases
                     logging.error(
                         f"Warning: Failed to query knowledge base {kb_id}: {response.status_code} - {response.text}")
+                    continue
 
             except Exception as e:
                 # Log error but continue with other knowledge bases
@@ -148,10 +149,10 @@ class DifyFlowProvider(Retriever):
     def list_resources(self, query: str | None = None) -> list[Resource]:
         """
         List available knowledge bases from Dify.
-        
+
         Args:
             query: Optional search query to filter knowledge bases
-            
+
         Returns:
             List of available knowledge base resources
         """
@@ -211,12 +212,12 @@ class DifyFlowProvider(Retriever):
         Document]:
         """
         Parse Dify API response and convert to Document format.
-        
+
         Args:
             response: Dify API response dictionary
             knowledge_base_id: The knowledge base ID for context
             doc_id_offset: Offset for document ID to ensure uniqueness across knowledge bases
-            
+
         Returns:
             List of Document objects
         """
@@ -258,10 +259,10 @@ class DifyFlowProvider(Retriever):
     def _parse_uri(self, uri: str) -> str | None:
         """
         Parse Dify URI to extract dataset ID.
-        
+
         Args:
             uri: URI in format dify://dataset/{dataset_id} or dify://knowledge_base/{knowledge_base_id}
-            
+
         Returns:
             Dataset ID or None if invalid format
         """
