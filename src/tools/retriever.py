@@ -28,6 +28,7 @@ class RetrieverTool(BaseTool):
 
     retriever: Retriever = Field(default_factory=Retriever)
     resources: list[Resource] = Field(default_factory=list)
+    knowledge_base_names: list[str] = Field(default_factory=list)
 
     def _run(
         self,
@@ -37,7 +38,9 @@ class RetrieverTool(BaseTool):
         logger.info(
             f"Retriever tool query: {keywords}", extra={"resources": self.resources}
         )
-        documents = self.retriever.query_relevant_documents(keywords, self.resources)
+        documents = self.retriever.query_relevant_documents(
+            keywords, self.resources, self.knowledge_base_names
+        )
         if not documents:
             return "No results found from the local knowledge base."
         return [doc.to_dict() for doc in documents]
@@ -50,7 +53,7 @@ class RetrieverTool(BaseTool):
         return self._run(keywords, run_manager.get_sync())
 
 
-def get_retriever_tool(resources: List[Resource]) -> RetrieverTool | None:
+def get_retriever_tool(resources: List[Resource], knowledge_base_names: List[str] = None) -> RetrieverTool | None:
     logger.info(f"create retriever tool: {SELECTED_RAG_PROVIDER}")
     retriever = build_retriever()
 
@@ -63,4 +66,11 @@ def get_retriever_tool(resources: List[Resource]) -> RetrieverTool | None:
     if not resources:
         logger.info("No specific resources provided - will query all available knowledge bases")
     
-    return RetrieverTool(retriever=retriever, resources=resources)
+    if knowledge_base_names:
+        logger.info(f"Filtering knowledge bases by names: {knowledge_base_names}")
+    
+    return RetrieverTool(
+        retriever=retriever, 
+        resources=resources, 
+        knowledge_base_names=knowledge_base_names or []
+    )

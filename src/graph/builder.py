@@ -8,6 +8,7 @@ from src.prompts.planner_model import StepType
 
 from .nodes import (
     background_investigation_node,
+    company_background_investigation_node,
     coder_node,
     coordinator_node,
     human_feedback_node,
@@ -47,20 +48,23 @@ def continue_to_running_research_team(state: State):
 def _build_base_graph():
     """Build and return the base state graph with all nodes and edges."""
     builder = StateGraph(State)
-    builder.add_edge(START, "coordinator")
-    builder.add_node("coordinator", coordinator_node)
-    builder.add_node("background_investigator", background_investigation_node)
-    builder.add_node("planner", planner_node)
-    builder.add_node("reporter", reporter_node)
-    builder.add_node("research_team", research_team_node)
-    builder.add_node("researcher", researcher_node)
-    builder.add_node("coder", coder_node)
-    builder.add_node("human_feedback", human_feedback_node)
-    builder.add_edge("background_investigator", "planner")
+    builder.add_edge(START, "coordinator") #开始->协调器
+    builder.add_node("coordinator", coordinator_node) #协调器
+    # builder.add_node("background_investigator", background_investigation_node)#背景调查
+    builder.add_node("company_background_investigator", company_background_investigation_node)#我司房抵贷业务背景调查
+    builder.add_node("planner", planner_node) #规划
+    builder.add_node("reporter", reporter_node) #报告编写
+    builder.add_node("research_team", research_team_node) #研究小组
+    builder.add_node("researcher", researcher_node) #研究员
+    builder.add_node("coder", coder_node) #程序员
+    builder.add_node("human_feedback", human_feedback_node) #用户输入反馈
+    # builder.add_edge("background_investigator", "planner") #背景调查->规划
+    builder.add_edge("company_background_investigator", "planner") #我司房抵贷业务背景调查->规划
+    # 条件边
     builder.add_conditional_edges(
         "research_team",
-        continue_to_running_research_team,
-        ["planner", "researcher", "coder"],
+        continue_to_running_research_team,#判断函数
+        ["planner", "researcher", "coder"], #可能的下一节点
     )
     builder.add_edge("reporter", END)
     return builder

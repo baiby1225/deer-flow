@@ -51,6 +51,9 @@ class Configuration:
     mcp_settings: dict = None  # MCP settings, including dynamic loaded tools
     report_style: str = ReportStyle.ACADEMIC.value  # Report style
     enable_deep_thinking: bool = False  # Whether to enable deep thinking
+    company_knowledge_bases: list[str] = field(
+        default_factory=lambda: ["风管知识库", "运管知识库"]
+    )  # 我司指定的知识库名称列表
 
     @classmethod
     def from_runnable_config(
@@ -62,10 +65,31 @@ class Configuration:
             config["configurable"] if config and "configurable" in config else {}
         )
 
-        values: dict[str, Any] = {
-            f.name: os.environ.get(f.name.upper(), configurable.get(f.name))
-            for f in fields(cls)
-            if f.init
-        }
+        # 尝试从YAML配置文件加载配置
+        yaml_config = {}
+        try:
+            from .loader import load_yaml_config
+            yaml_config = load_yaml_config("conf.yaml")
+        except Exception as e:
+            logger.warning(f"Failed to load YAML config: {e}")
 
-        return cls(**{k: v for k, v in values.items() if v})
+        values: dict[str, Any] = {}
+        for f in fields(cls):
+            if f.init:
+                # 优先级：环境变量 > configurable > YAML配置 > 默认值
+                env_value = os.environ.get(f.name.upper())
+                configurable_value = configurable.get(f.name)
+                yaml_value = yaml_config.get(f.name.upper())
+                
+                if env_value is not None:
+                    # 处理环境变量中的列表（用逗号分隔）
+                    if f.name == "company_knowledge_bases" and isinstance(env_value, str):
+                        values[f.name] = [item.strip() for item in env_value.split(",") if item.strip()]
+                    else:
+                        values[f.name] = env_value
+                elif configurable_value is not None:
+                    values[f.name] = configurable_value
+                elif yaml_value is not None:
+                    values[f.name] = yaml_value
+
+        return cls(**{k: v for k, v in values.items() if v is not None})

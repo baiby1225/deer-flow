@@ -42,7 +42,7 @@ class DifyFlowProvider(Retriever):
             self.max_knowledge_bases = int(max_kb)
 
     def query_relevant_documents(
-            self, query: str, resources: list[Resource] = []
+            self, query: str, resources: list[Resource] = [], knowledge_base_names: list[str] = None
     ) -> list[Document]:
         """
         Query relevant documents from Dify knowledge bases.
@@ -50,6 +50,7 @@ class DifyFlowProvider(Retriever):
         Args:
             query: The search query
             resources: List of resources to search in (optional, queries all knowledge bases if empty)
+            knowledge_base_names: List of knowledge base names to filter by (optional)
             
         Returns:
             List of relevant documents from all specified knowledge bases
@@ -69,9 +70,16 @@ class DifyFlowProvider(Retriever):
                 if kb_id and kb_id not in knowledge_base_ids:
                     knowledge_base_ids.append(kb_id)
         else:
-            # Get all available knowledge bases
+            # Get available knowledge bases
             try:
-                all_resources = self.list_resources()
+                if knowledge_base_names:
+                    # Filter by specific knowledge base names
+                    all_resources = self.list_resources_by_names(knowledge_base_names)
+                    logging.info(f"按名称过滤知识库: {knowledge_base_names}")
+                else:
+                    # Get all available knowledge bases
+                    all_resources = self.list_resources()
+                
                 for resource in all_resources[:self.max_knowledge_bases]:
                     kb_id = self._parse_uri(resource.uri)
                     if kb_id and kb_id not in knowledge_base_ids:
@@ -207,6 +215,27 @@ class DifyFlowProvider(Retriever):
 
         except requests.exceptions.RequestException as e:
             raise Exception(f"Network error while listing Dify datasets: {str(e)}")
+
+    def list_resources_by_names(self, knowledge_base_names: list[str]) -> list[Resource]:
+        """
+        List knowledge bases by specific names.
+
+        Args:
+            knowledge_base_names: List of knowledge base names to filter by
+
+        Returns:
+            List of matching knowledge base resources
+        """
+        all_resources = self.list_resources()
+        filtered_resources = []
+        
+        for resource in all_resources:
+            if resource.title in knowledge_base_names:
+                filtered_resources.append(resource)
+                logging.info(f"找到匹配的知识库: {resource.title}")
+        
+        logging.info(f"按名称过滤后找到 {len(filtered_resources)} 个知识库")
+        return filtered_resources
 
     def _parse_dify_response(self, response: dict, knowledge_base_id: str = "", doc_id_offset: int = 0) -> list[
         Document]:

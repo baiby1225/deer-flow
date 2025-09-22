@@ -27,7 +27,7 @@ from src.tools import (
 from src.tools.search import LoggedTavilySearch
 from src.utils.json_utils import repair_json_output
 
-from ..config import SELECTED_SEARCH_ENGINE, SearchEngine
+from ..config import SELECTED_SEARCH_ENGINE, SearchEngine, load_yaml_config
 from .types import State
 from ..utils.loadmcp import load_config_from_file
 
@@ -48,6 +48,7 @@ def handoff_to_planner(
 
 
 def background_investigation_node(state: State, config: RunnableConfig):
+    """通用背景调查节点 - 支持网络搜索"""
     logger.info("background investigation node is running.")
     configurable = Configuration.from_runnable_config(config)
     query = state.get("research_topic")
@@ -57,7 +58,7 @@ def background_investigation_node(state: State, config: RunnableConfig):
     if SELECTED_SEARCH_ENGINE == SearchEngine.NO_SEARCH.value:
         logger.info("Web search is disabled - skipping background investigation")
         return {
-            "background_investigation_results": "Background investigation skipped - using only knowledge base sources"
+            "background_investigation_results": "skip"
         }
 
     if SELECTED_SEARCH_ENGINE == SearchEngine.TAVILY.value:
@@ -95,6 +96,70 @@ def background_investigation_node(state: State, config: RunnableConfig):
     }
 
 
+def company_background_investigation_node(state: State, config: RunnableConfig):
+    """我司房抵贷业务背景调查节点 - 从Dify知识库学习基础业务知识"""
+    logger.info("我司房抵贷业务背景调查节点正在运行...")
+    configurable = Configuration.from_runnable_config(config)
+    query = state.get("research_topic", "")
+    background_investigation_results = None
+    # 优先使用Dify知识库进行背景调查
+    logger.info(f"开始从Dify知识库查询房抵贷业务背景知识: {query}")
+    logger.info(f"指定查询的知识库: {configurable.company_knowledge_bases}")
+    
+    # 获取Dify检索工具，使用我司指定的知识库
+    retriever_tool = get_retriever_tool(
+        configurable.resources, 
+        configurable.company_knowledge_bases
+    )
+    
+    if retriever_tool is not None:
+        try:
+            # 从Dify知识库查询相关业务知识
+            knowledge_docs = retriever_tool._run(query)
+            
+            if knowledge_docs and knowledge_docs != "No results found from the local knowledge base.":
+                logger.info(f"从Dify知识库获取到 {len(knowledge_docs)}")
+                
+                # 格式化知识库结果
+                formatted_results = []
+                for doc in knowledge_docs:
+                    if isinstance(doc, dict):
+                        title = doc.get('title', '房抵贷业务知识')
+                        content = doc.get('content', '')
+                        chunks = doc.get('chunks', [])
+                        
+                        # 构建格式化的知识条目
+                        knowledge_entry = f"## {title}\n\n{content}"
+                        
+                        # 如果有chunks，添加详细信息
+                        if chunks:
+                            knowledge_entry += "\n\n### 详细内容:\n"
+                            for i, chunk in enumerate(chunks[:3], 1):  # 只显示前3个chunks
+                                chunk_content = chunk.get('content', '')[:200] + "..." if len(chunk.get('content', '')) > 200 else chunk.get('content', '')
+                                knowledge_entry += f"\n{i}. {chunk_content}"
+                        
+                        formatted_results.append(knowledge_entry)
+                
+                background_investigation_results = "\n\n".join(formatted_results)
+
+            else:
+                logger.warning("Dify知识库中未找到相关房抵贷业务知识")
+                background_investigation_results = "未在内部知识库中找到相关房抵贷业务背景知识"
+                
+        except Exception as e:
+            logger.error(f"从Dify知识库查询时发生错误: {e}")
+            background_investigation_results = f"知识库查询出错: {str(e)}"
+    else:
+        logger.warning("Dify检索工具不可用 - 跳过背景调查")
+        background_investigation_results = "Dify知识库不可用 - 无法进行背景调查"
+
+    return {
+        "background_investigation_results": json.dumps(
+            background_investigation_results, ensure_ascii=False
+        )
+    }
+
+
 def planner_node(
         state: State, config: RunnableConfig
 ) -> Command[Literal["human_feedback", "reporter"]]:
@@ -103,10 +168,12 @@ def planner_node(
     configurable = Configuration.from_runnable_config(config)
     plan_iterations = state["plan_iterations"] if state.get("plan_iterations", 0) else 0
     messages = apply_prompt_template("planner", state, configurable)
+    logger.info("------------->")
+    logger.info(state.get("background_investigation_results"))
 
     if state.get("enable_background_investigation") and state.get(
             "background_investigation_results"
-    ):
+    ) != "skip":
         messages += [
             {
                 "role": "user",
@@ -127,11 +194,11 @@ def planner_node(
         )
     else:
         llm = get_llm_by_type(AGENT_LLM_MAP["planner"])
-
+    logger.info("---->-")
+    logger.info(messages)
     # if the plan iterations is greater than the max plan iterations, return the reporter node
     if plan_iterations >= configurable.max_plan_iterations:
         return Command(goto="reporter")
-
     full_response = ""
     if AGENT_LLM_MAP["planner"] == "basic" and not configurable.enable_deep_thinking:
         response = llm.invoke(messages)
@@ -222,7 +289,7 @@ def human_feedback_node(
 
 def coordinator_node(
         state: State, config: RunnableConfig
-) -> Command[Literal["planner", "background_investigator", "__end__"]]:
+) -> Command[Literal["planner", "company_background_investigator", "__end__"]]:
     """Coordinator node that communicate with customers."""
     logger.info("Coordinator talking.")
     configurable = Configuration.from_runnable_config(config)
@@ -241,8 +308,8 @@ def coordinator_node(
     if len(response.tool_calls) > 0:
         goto = "planner"
         if state.get("enable_background_investigation"):
-            # if the search_before_planning is True, add the web search tool to the planner agent
-            goto = "background_investigator"
+            # 优先使用我司房抵贷业务背景调查节点
+            goto = "company_background_investigator"
         try:
             for tool_call in response.tool_calls:
                 if tool_call.get("name", "") != "handoff_to_planner":

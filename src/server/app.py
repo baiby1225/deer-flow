@@ -99,6 +99,8 @@ async def chat_stream(request: ChatRequest):
     if thread_id == "__default__":
         thread_id = str(uuid4())
 
+    request.enable_background_investigation=True
+
     return StreamingResponse(
         _astream_workflow_generator(
             request.model_dump()["messages"],
