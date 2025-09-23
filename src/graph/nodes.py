@@ -29,7 +29,7 @@ from src.utils.json_utils import repair_json_output
 
 from ..config import SELECTED_SEARCH_ENGINE, SearchEngine, load_yaml_config
 from .types import State
-from ..utils.loadmcp import load_config_from_file
+from ..utils.loadmcp import load_config_from_file_async
 
 # Removed import to avoid circular import - load_config_from_file is not used in this file
 
@@ -105,21 +105,21 @@ def company_background_investigation_node(state: State, config: RunnableConfig):
     # 优先使用Dify知识库进行背景调查
     logger.info(f"开始从Dify知识库查询房抵贷业务背景知识: {query}")
     logger.info(f"指定查询的知识库: {configurable.company_knowledge_bases}")
-    
+
     # 获取Dify检索工具，使用我司指定的知识库
     retriever_tool = get_retriever_tool(
-        configurable.resources, 
+        configurable.resources,
         configurable.company_knowledge_bases
     )
-    
+
     if retriever_tool is not None:
         try:
             # 从Dify知识库查询相关业务知识
             knowledge_docs = retriever_tool._run(query)
-            
+
             if knowledge_docs and knowledge_docs != "No results found from the local knowledge base.":
                 logger.info(f"从Dify知识库获取到 {len(knowledge_docs)}")
-                
+
                 # 格式化知识库结果
                 formatted_results = []
                 for doc in knowledge_docs:
@@ -127,25 +127,26 @@ def company_background_investigation_node(state: State, config: RunnableConfig):
                         title = doc.get('title', '房抵贷业务知识')
                         content = doc.get('content', '')
                         chunks = doc.get('chunks', [])
-                        
+
                         # 构建格式化的知识条目
                         knowledge_entry = f"## {title}\n\n{content}"
-                        
+
                         # 如果有chunks，添加详细信息
                         if chunks:
                             knowledge_entry += "\n\n### 详细内容:\n"
                             for i, chunk in enumerate(chunks[:3], 1):  # 只显示前3个chunks
-                                chunk_content = chunk.get('content', '')[:200] + "..." if len(chunk.get('content', '')) > 200 else chunk.get('content', '')
+                                chunk_content = chunk.get('content', '')[:200] + "..." if len(
+                                    chunk.get('content', '')) > 200 else chunk.get('content', '')
                                 knowledge_entry += f"\n{i}. {chunk_content}"
-                        
+
                         formatted_results.append(knowledge_entry)
-                
+
                 background_investigation_results = "\n\n".join(formatted_results)
 
             else:
                 logger.warning("Dify知识库中未找到相关房抵贷业务知识")
                 background_investigation_results = "未在内部知识库中找到相关房抵贷业务背景知识"
-                
+
         except Exception as e:
             logger.error(f"从Dify知识库查询时发生错误: {e}")
             background_investigation_results = f"知识库查询出错: {str(e)}"
@@ -242,7 +243,7 @@ def human_feedback_node(
 ) -> Command[Literal["planner", "research_team", "reporter", "__end__"]]:
     current_plan = state.get("current_plan", "")
     # check if the plan is auto accepted
-    auto_accepted_plan = state.get("auto_accepted_plan", False)
+    auto_accepted_plan =True # state.get("auto_accepted_plan", False)
     if not auto_accepted_plan:
         feedback = interrupt("Please Review the Plan.")
 
@@ -448,6 +449,16 @@ async def _execute_agent_step(
                 name="system",
             )
         )
+    elif agent_name == "dba":
+        # For DBA agent, use the original user question instead of research context
+        original_question = state.get("research_topic", "")
+        agent_input = {
+            "messages": [
+                HumanMessage(
+                    content=f"# User Question\n\n{original_question}\n\n# Current DBA Step\n\n## Title\n\n{current_step.title}\n\n## Description\n\n{current_step.description}\n\n## Locale\n\n{state.get('locale', 'en-US')}"
+                )
+            ]
+        }
 
     # Invoke the agent
     default_recursion_limit = 25
@@ -522,14 +533,18 @@ async def _setup_and_execute_agent_step(
         Command to update state and go to research_team
     """
     configurable = Configuration.from_runnable_config(config)
-    configurable.mcp_settings = load_config_from_file().get("mcp_settings", {})
+    configurable.mcp_settings = await load_config_from_file_async()
+    configurable.mcp_settings = configurable.mcp_settings.get("mcp_settings", {})
 
     mcp_servers = {}
     enabled_tools = {}
 
     # Extract MCP server configuration for this agent type
     if configurable.mcp_settings:
+        logging.info(f"Processing MCP settings for agent type: {agent_type}")
+        logging.info(f"Available servers: {list(configurable.mcp_settings['servers'].keys())}")
         for server_name, server_config in configurable.mcp_settings["servers"].items():
+            logging.info(f"Checking server {server_name}: enabled_tools={server_config.get('enabled_tools')}, add_to_agents={server_config.get('add_to_agents')}")
             if (
                     server_config["enabled_tools"]
                     and agent_type in server_config["add_to_agents"]
@@ -541,29 +556,43 @@ async def _setup_and_execute_agent_step(
                 }
                 for tool_name in server_config["enabled_tools"]:
                     enabled_tools[tool_name] = server_name
-    logging.info("===================1")
-    logging.info(configurable)
-    logging.info(mcp_servers)
+                logging.info(f"Added server {server_name} for agent {agent_type}")
+            else:
+                logging.info(f"Skipping server {server_name} for agent {agent_type}")
     # Create and execute agent with MCP tools if available
     if mcp_servers:
-        client = MultiServerMCPClient(mcp_servers)
-        loaded_tools = default_tools[:]
-        all_tools = await client.get_tools()
-        logging.info(f"===================2")
-        logging.info(f"All MCP tools found: {[tool.name for tool in all_tools]}")
-        logging.info(f"Enabled tools filter: {enabled_tools}")
-        for tool in all_tools:
-            # if tool.name in enabled_tools:
-            #     tool.description = (
-            #         f"Powered by '{enabled_tools[tool.name]}'.\n{tool.description}"
-            #     )
-            loaded_tools.append(tool)
-            logging.info(f"Added MCP tool: {tool.name}")
-        logging.info(f"Final loaded tools: {[tool.name for tool in loaded_tools]}")
-        agent = create_agent(agent_type, agent_type, loaded_tools, agent_type)
-        return await _execute_agent_step(state, agent, agent_type)
+        try:
+            logging.info(f"Creating MCP client with servers: {list(mcp_servers.keys())}")
+            client = MultiServerMCPClient(mcp_servers)
+            loaded_tools = default_tools[:]
+            
+            logging.info("Attempting to get tools from MCP servers...")
+            all_tools = await client.get_tools()
+            logging.info(f"===================2")
+            logging.info(f"All MCP tools found: {[tool.name for tool in all_tools]}")
+            logging.info(f"Enabled tools filter: {enabled_tools}")
+            
+            for tool in all_tools:
+                if tool.name in enabled_tools:
+                    tool.description = (
+                        f"Powered by '{enabled_tools[tool.name]}'.\n{tool.description}"
+                    )
+                    loaded_tools.append(tool)
+                    logging.info(f"Added MCP tool: {tool.name}")
+            
+            logging.info(f"Final loaded tools: {[tool.name for tool in loaded_tools]}")
+            agent = create_agent(agent_type, agent_type, loaded_tools, agent_type)
+            return await _execute_agent_step(state, agent, agent_type)
+            
+        except Exception as e:
+            logging.error(f"Error loading MCP tools: {str(e)}")
+            logging.error(f"Falling back to default tools for agent {agent_type}")
+            # Fall back to default tools if MCP loading fails
+            agent = create_agent(agent_type, agent_type, default_tools, agent_type)
+            return await _execute_agent_step(state, agent, agent_type)
     else:
         # Use default tools if no MCP servers are configured
+        logging.info(f"No MCP servers configured for agent {agent_type}, using default tools")
         agent = create_agent(agent_type, agent_type, default_tools, agent_type)
         return await _execute_agent_step(state, agent, agent_type)
 
@@ -590,7 +619,7 @@ async def researcher_node(
         logger.info("Web search is disabled - using only knowledge base sources")
 
     # Always add crawl tool for local content
-    tools.append(crawl_tool)
+    # tools.append(crawl_tool)
 
     # Add retriever tool for knowledge base access
     retriever_tool = get_retriever_tool(state.get("resources", []))
@@ -619,4 +648,17 @@ async def coder_node(
         config,
         "coder",
         [python_repl_tool],
+    )
+
+
+async def dba_node(
+        state: State, config: RunnableConfig
+) -> Command[Literal["research_team"]]:
+    """DBA node that generates SQL queries and executes them via bc2 MCP server."""
+    logger.info("DBA node is analyzing data.")
+    return await _setup_and_execute_agent_step(
+        state,
+        config,
+        "dba",
+        [],  # DBA will use MCP tools from bc2 server
     )

@@ -54,7 +54,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--host",
         type=str,
-        default="localhost",
+        default="0.0.0.0",
         help="Host to bind the server to (default: localhost)",
     )
     parser.add_argument(

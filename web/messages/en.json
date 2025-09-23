@@ -85,10 +85,9 @@
       "description": "Welcome to 🦌 DeerFlow, a deep research assistant built on cutting-edge language models, helps you search on web, browse information, and handle complex tasks."
     },
     "conversationStarters": [
-      "How many times taller is the Eiffel Tower than the tallest building in the world?",
-      "How many years does an average Tesla battery last compared to a gasoline engine?",
-      "How many liters of water are required to produce 1 kg of beef?",
-      "How many times faster is the speed of light compared to the speed of sound?"
+      "上海，房龄35年，可以使用什么资金？",
+      "长沙，办理3年期等额本息业务，可以用什么产品，使用什么资金？",
+      "火车票报销要求"
     ],
     "inputBox": {
       "deepThinking": "Deep Thinking",

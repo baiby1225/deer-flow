@@ -4,7 +4,7 @@
 import logging
 
 from src.config.configuration import get_recursion_limit
-from src.utils.loadmcp import load_config_from_file
+from src.utils.loadmcp import load_config_from_file_async
 
 # Configure logging
 logging.basicConfig(
@@ -58,7 +58,7 @@ async def run_agent_workflow_async(
     logger.info(f"Starting async workflow with user input: {user_input}")
     
     # Load MCP configuration from file
-    file_config = load_config_from_file()
+    file_config = await load_config_from_file_async()
     
     initial_state = {
         # Runtime Variables
