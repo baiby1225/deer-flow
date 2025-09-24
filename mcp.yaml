@@ -23,9 +23,9 @@ mcp_settings:
       transport: sse
       url: "http://172.16.0.153:8080/sse"
       enabled_tools:
-        - "dbquery_tool"
+        - "get_fund_role_tool"
         - "projectdata_tool"
-      add_to_agents: [ "dba", "researcher" ]
+      add_to_agents: [ "researcher" ]
       headers:
         Authorization: "X-API-KEY 123456"
 

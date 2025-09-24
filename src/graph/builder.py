@@ -60,7 +60,7 @@ def _build_base_graph():
     builder.add_node("research_team", research_team_node) #研究小组
     builder.add_node("researcher", researcher_node) #研究员
     builder.add_node("coder", coder_node) #程序员
-    builder.add_node("dba", dba_node) #数据库分析师
+    # builder.add_node("dba", dba_node) #数据库分析师
     builder.add_node("human_feedback", human_feedback_node) #用户输入反馈
     # builder.add_edge("background_investigator", "planner") #背景调查->规划
     builder.add_edge("company_background_investigator", "planner") #我司房抵贷业务背景调查->规划
@@ -68,7 +68,7 @@ def _build_base_graph():
     builder.add_conditional_edges(
         "research_team",
         continue_to_running_research_team,#判断函数
-        ["planner", "researcher", "coder", "dba"], #可能的下一节点
+        ["planner", "researcher", "coder"], #可能的下一节点
     )
     builder.add_edge("reporter", END)
     return builder
