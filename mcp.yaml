@@ -18,21 +18,14 @@ mcp_settings:
     #      add_to_agents: ["researcher"]
     #      headers:
     #        Authorization: "Bearer app-123"
-    bc_get_projectdata:
-      transport: sse
-      url: "http://172.16.0.153:8080/sse"
-      enabled_tools:
-        - "projectdata_tool"
-      add_to_agents: [ "researcher" ]
-      headers:
-        Authorization: "X-API-KEY 123456"
 
     bc2:
       transport: sse
       url: "http://172.16.0.153:8080/sse"
       enabled_tools:
         - "dbquery_tool"
-      add_to_agents: [ "dba" ]
+        - "projectdata_tool"
+      add_to_agents: [ "dba", "researcher" ]
       headers:
         Authorization: "X-API-KEY 123456"
 

@@ -243,7 +243,7 @@ def human_feedback_node(
 ) -> Command[Literal["planner", "research_team", "reporter", "__end__"]]:
     current_plan = state.get("current_plan", "")
     # check if the plan is auto accepted
-    auto_accepted_plan =True # state.get("auto_accepted_plan", False)
+    auto_accepted_plan =state.get("auto_accepted_plan", False)
     if not auto_accepted_plan:
         feedback = interrupt("Please Review the Plan.")
 
