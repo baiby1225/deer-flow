@@ -154,6 +154,7 @@ def company_background_investigation_node(state: State, config: RunnableConfig):
         logger.warning("Dify检索工具不可用 - 跳过背景调查")
         background_investigation_results = "Dify知识库不可用 - 无法进行背景调查"
 
+    background_investigation_results="nothing"
     return {
         "background_investigation_results": json.dumps(
             background_investigation_results, ensure_ascii=False

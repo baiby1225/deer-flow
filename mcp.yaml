@@ -21,13 +21,13 @@ mcp_settings:
 
     bc2:
       transport: sse
-      url: "http://172.16.0.153:8080/sse"
+      url: "http://172.16.0.153:90/sse"
       enabled_tools:
         - "get_fund_role_tool"
         - "projectdata_tool"
       add_to_agents: [ "researcher" ]
-      headers:
-        Authorization: "X-API-KEY 123456"
+#      headers:
+#        Authorization: "X-API-KEY 123456"
 
 #    background_investigation:
 #      transport: sse
